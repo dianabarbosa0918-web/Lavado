@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lavado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header><div class="wrap">
+  <div class="brand">Lavado<small id="fecha"></small></div>
+  <div class="status"><span class="dot" id="dot"></span><span id="estadoTxt">Conectando…</span></div>
+</div></header>
+<main><div class="wrap">
+  <div id="aviso" class="banner" hidden></div>
+  <div id="nowBox" class="now"><h3>Cargando…</h3></div>
+  <div class="row"><h3>Siguientes en orden</h3><span class="sub" id="metaTxt"></span></div>
+  <div class="queue" id="queue"></div>
+  <p class="msg" id="msg"></p>
+</div></main>
+
+<script src="config.js"></script>
+<script src="comun.js"></script>
+<script>
+let st = null, ocupado = false, confirmar = false;
+
+function aviso(t) { $("#aviso").textContent = t || ""; $("#aviso").hidden = !t; }
+function msg(t, err) { $("#msg").textContent = t || ""; $("#msg").className = "msg" + (err ? " err" : ""); }
+function conexion(ok) { $("#dot").className = "dot" + (ok ? "" : " off"); $("#estadoTxt").textContent = ok ? "En línea" : "Sin conexión"; }
+
+function pintar() {
+  if (!st) return;
+  $("#metaTxt").textContent = "Meta: " + st.meta + " min · " + st.terminadosHoy + " lavados hoy";
+  pintarActual($("#nowBox"), st.enCurso, st.pendientes, st.meta, confirmar ? "confirmar" : "boton", ocupado);
+  pintarCola($("#queue"), st.pendientes, st.enCurso, true, ocupado);
+}
+
+async function cargar() {
+  if (ocupado) return;
+  try { st = await api("estado"); conexion(true); aviso(""); pintar(); }
+  catch (e) { conexion(false); aviso(e.message); }
+}
+
+async function accion(nombre, id) {
+  ocupado = true; pintar(); msg("");
+  try { st = await api(nombre, { id }); conexion(true); }
+  catch (e) { msg(e.message, true); }
+  ocupado = false; confirmar = false;
+  await cargar(); pintar();
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || ocupado) return;
+  if (b.dataset.ini) accion("iniciar", b.dataset.ini);
+  else if (b.dataset.fin) { confirmar = true; pintar(); }
+  else if (b.dataset.finok) accion("finalizar", b.dataset.finok);
+  else if (b.dataset.cancelar) { confirmar = false; pintar(); }
+});
+
+$("#fecha").textContent = new Date().toLocaleDateString("es-CO", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
+setInterval(() => { if (st) tickReloj($("#nowBox"), st.enCurso, st.meta); }, 1000);
+setInterval(cargar, 8000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { cargar(); mantenerPantalla(); } });
+cargar(); mantenerPantalla();
+</script>
+</body>
+</html>

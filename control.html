@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Control de Lavados</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ACCESO CON PIN -->
+<section id="login" class="wrap" hidden>
+  <form class="login panel" id="fLogin" autocomplete="off">
+    <div><h2>Control de Lavados</h2><p class="sub">Ingresa el PIN para ver Registro y Tiempos.</p></div>
+    <label>PIN<input id="pin" type="password" inputmode="numeric" maxlength="12" required></label>
+    <button class="btn" id="bLogin" type="submit">Entrar</button>
+    <p class="msg" id="lMsg"></p>
+  </form>
+</section>
+
+<div id="app" hidden>
+<header><div class="wrap">
+  <div class="brand">Control de Lavados<small id="fecha"></small></div>
+  <nav role="tablist" aria-label="Vistas">
+    <button role="tab" id="tab-registro" data-v="registro" aria-selected="true">Registro</button>
+    <button role="tab" id="tab-monitor" data-v="monitor" aria-selected="false">Lavador</button>
+    <button role="tab" id="tab-tiempos" data-v="tiempos" aria-selected="false">Tiempos</button>
+  </nav>
+  <button class="btn ghost sm" id="bSalir" type="button">Salir</button>
+</div></header>
+
+<main><div class="wrap">
+  <div id="aviso" class="banner" hidden></div>
+
+  <!-- REGISTRO -->
+  <section id="v-registro">
+    <div style="display:grid;gap:16px">
+      <div><h2>Registro de vehículos</h2><p class="sub">Agrega la placa y el orden en que se deben lavar hoy. El lavador verá la lista en ese orden.</p></div>
+      <form id="fAdd" class="panel" autocomplete="off">
+        <div class="form">
+          <label>Placa<input id="fPlaca" maxlength="8" placeholder="ABC123" required style="text-transform:uppercase"></label>
+          <label>Tipo de lavado<select id="fCat">
+            <option>Mantenimiento</option><option>Express</option><option>Nanolavado</option><option value="Otro">Otro (escribir)</option>
+          </select></label>
+          <label id="fOtroBox" hidden>¿Cuál?<input id="fOtro" maxlength="40" placeholder="Ej. Lavado de motor"></label>
+          <label>Orden<input id="fOrden" type="number" min="1" step="1" required></label>
+          <label>Hora llegada cliente <span style="text-transform:none;font-weight:400">(opcional)</span><input id="fHora" type="time"></label>
+          <button class="btn" id="fBtn" type="submit">Agregar</button>
+        </div>
+        <p class="msg" id="fMsg"></p>
+      </form>
+      <div class="panel">
+        <div class="row" style="margin-bottom:10px"><h3>Pendientes de hoy</h3><span class="sub" id="pendCount"></span></div>
+        <div class="tablebox"><table>
+          <thead><tr><th>Orden</th><th>Placa</th><th>Tipo</th><th>Llega cliente</th><th>Registrado</th><th></th></tr></thead>
+          <tbody id="tPend"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody>
+        </table></div>
+        <p class="msg">Cambia el número de orden para reorganizar la fila. Los vehículos en lavado o terminados ya no se pueden editar.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- MONITOR DEL LAVADOR (solo ver) -->
+  <section id="v-monitor" hidden>
+    <div style="display:grid;gap:18px">
+      <p class="sub">Así ve el lavador su pantalla. Desde aquí solo se observa.</p>
+      <div id="nowBox" class="now"><h3>Cargando…</h3></div>
+      <div class="row"><h3>Siguientes en orden</h3><span class="sub" id="metaTxt"></span></div>
+      <div class="queue" id="queue"></div>
+    </div>
+  </section>
+
+  <!-- TIEMPOS -->
+  <section id="v-tiempos" hidden>
+    <div style="display:grid;gap:18px">
+      <div class="row">
+        <div><h2>Tiempos de lavado</h2><p class="sub" id="rangoTxt"></p></div>
+        <div class="filters">
+          <label>Desde<input id="dDesde" type="date"></label>
+          <label>Hasta<input id="dHasta" type="date"></label>
+          <button class="btn ghost" id="bAct" type="button">Actualizar</button>
+        </div>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <div class="panel"><h3 style="margin-bottom:12px">Por tipo de lavado</h3><div class="bars" id="bars"></div></div>
+      <div class="panel">
+        <h3 style="margin-bottom:10px">Detalle</h3>
+        <div class="tablebox"><table>
+          <thead><tr><th>Fecha</th><th>Orden</th><th>Placa</th><th>Tipo</th><th>Llega cliente</th><th>Registrado</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Espera</th><th>Tiempo muerto</th><th>Estado</th></tr></thead>
+          <tbody id="tDet"><tr><td colspan="12" class="empty">Cargando…</td></tr></tbody>
+        </table></div>
+        <p class="msg"><b>Espera</b>: desde que se registró hasta que inició el lavado. <b>Tiempo muerto</b>: desde que terminó el lavado anterior hasta que inició este.</p>
+      </div>
+      <div class="panel">
+        <h3 style="margin-bottom:10px">Meta por lavado</h3>
+        <div class="filters" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+          <label style="min-width:130px">Minutos<input id="dMeta" type="number" min="1" max="120" step="1"></label>
+          <button class="btn" id="bMeta" type="button">Guardar meta</button>
+        </div>
+        <p class="msg" id="mMsg"></p>
+      </div>
+    </div>
+  </section>
+</div></main>
+</div>
+
+<script src="config.js"></script>
+<script src="comun.js"></script>
+<script>
+const CATS = ["Mantenimiento", "Express", "Nanolavado"];
+let PIN = "", st = null, filas = [], meta = 20, confirmId = null, vista = "registro";
+
+function leerPin() { try { return sessionStorage.getItem("lav_pin") || ""; } catch (e) { return ""; } }
+function guardarPin(p) { try { p ? sessionStorage.setItem("lav_pin", p) : sessionStorage.removeItem("lav_pin"); } catch (e) {} }
+function aviso(t) { $("#aviso").textContent = t || ""; $("#aviso").hidden = !t; }
+function setMsg(el, t, err) { el.textContent = t || ""; el.className = "msg" + (err ? " err" : ""); }
+
+async function adm(accion, datos) {
+  try { return await api(accion, Object.assign({ pin: PIN }, datos || {})); }
+  catch (e) { if (/PIN incorrecto|intentos/.test(e.message)) salir(e.message); throw e; }
+}
+
+/* ---------- Acceso ---------- */
+function salir(m) {
+  PIN = ""; guardarPin(""); $("#app").hidden = true; $("#login").hidden = false;
+  setMsg($("#lMsg"), m || "", !!m); $("#pin").value = ""; $("#pin").focus();
+}
+async function entrar(p) {
+  $("#bLogin").disabled = true;
+  try {
+    await api("login", { pin: p });
+    PIN = p; guardarPin(p); $("#login").hidden = true; $("#app").hidden = false;
+    cargarEstado(); cargarTiempos();
+  } catch (e) { salir(e.message); }
+  $("#bLogin").disabled = false;
+}
+$("#fLogin").addEventListener("submit", e => { e.preventDefault(); entrar($("#pin").value.trim()); });
+$("#bSalir").addEventListener("click", () => salir(""));
+
+/* ---------- Pestañas ---------- */
+function mostrar(v) {
+  vista = v;
+  ["registro", "monitor", "tiempos"].forEach(x => { $("#v-" + x).hidden = x !== v; $("#tab-" + x).setAttribute("aria-selected", x === v); });
+  if (v === "tiempos") cargarTiempos(); else cargarEstado();
+}
+document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => mostrar(b.dataset.v)));
+
+/* ---------- Estado (registro y monitor) ---------- */
+async function cargarEstado() {
+  if (!PIN) return;
+  try { st = await api("estado"); meta = st.meta; aviso(""); pintarEstado(); }
+  catch (e) { aviso(e.message); }
+}
+function pintarEstado() {
+  if (!st) return;
+  const enTabla = document.activeElement && document.activeElement.closest && document.activeElement.closest("#tPend");
+  if (!enTabla) pintarRegistro();
+  $("#metaTxt").textContent = "Meta: " + st.meta + " min · " + st.terminadosHoy + " lavados hoy";
+  pintarActual($("#nowBox"), st.enCurso, st.pendientes, st.meta, "ninguno", false);
+  pintarCola($("#queue"), st.pendientes, st.enCurso, false, false);
+}
+function pintarRegistro() {
+  const pend = st.pendientes;
+  const fo = $("#fOrden");
+  if (document.activeElement !== fo && fo.dataset.manual !== "1") fo.value = Math.max(0, ...pend.map(r => r.orden)) + 1;
+  $("#pendCount").textContent = pend.length + " en espera · " + st.terminadosHoy + " lavados hoy" + (st.enCurso ? " · 1 en lavado" : "");
+  const tb = $("#tPend");
+  if (!pend.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">No hay vehículos pendientes. Agrega el primero arriba.</td></tr>'; return; }
+  tb.innerHTML = pend.map(r => `<tr>
+    <td><input class="ord" type="number" min="1" id="ord-${esc(r.id)}" data-id="${esc(r.id)}" value="${r.orden}" aria-label="Orden ${esc(r.placa)}"></td>
+    <td><span class="plate">${esc(r.placa)}</span></td><td>${esc(r.tipo)}</td>
+    <td>${r.horaCliente ? esc(r.horaCliente) : "—"}</td><td>${hhmm(r.registrado)}</td>
+    <td>${confirmId === r.id
+      ? `<span class="inline-confirm">¿Quitar?<button class="btn sm danger" data-del="${esc(r.id)}">Sí</button><button class="btn sm ghost" data-cancel="1">No</button></span>`
+      : `<button class="btn sm ghost" data-ask="${esc(r.id)}">Quitar</button>`}</td></tr>`).join("");
+}
+
+$("#fCat").addEventListener("change", e => { $("#fOtroBox").hidden = e.target.value !== "Otro"; });
+$("#fPlaca").addEventListener("input", e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
+$("#fOrden").addEventListener("input", e => { e.target.dataset.manual = "1"; });
+
+$("#fAdd").addEventListener("submit", async e => {
+  e.preventDefault(); const m = $("#fMsg");
+  const placa = $("#fPlaca").value.trim(), cat = $("#fCat").value, otro = $("#fOtro").value.trim();
+  const orden = parseInt($("#fOrden").value, 10);
+  if (placa.length < 5) return setMsg(m, "Escribe una placa válida (ej. ABC123).", true);
+  if (cat === "Otro" && !otro) return setMsg(m, "Escribe cuál es el otro tipo de lavado.", true);
+  if (!(orden >= 1)) return setMsg(m, "El orden debe ser un número desde 1.", true);
+  $("#fBtn").disabled = true; setMsg(m, "Guardando…");
+  try {
+    st = await adm("agregar", { placa, tipo: cat === "Otro" ? otro : cat, orden, horaCliente: $("#fHora").value });
+    setMsg(m, "Agregado: " + placa + " en el puesto " + orden + ".");
+    $("#fPlaca").value = ""; $("#fOtro").value = ""; $("#fHora").value = ""; $("#fOrden").dataset.manual = "0";
+    pintarEstado(); $("#fPlaca").focus();
+  } catch (err) { setMsg(m, err.message, true); }
+  $("#fBtn").disabled = false;
+});
+
+$("#tPend").addEventListener("change", async e => {
+  const id = e.target.dataset.id; if (!id) return;
+  const v = parseInt(e.target.value, 10);
+  if (!(v >= 1)) { pintarRegistro(); return; }
+  try { st = await adm("reordenar", { id, orden: v }); e.target.blur(); pintarEstado(); }
+  catch (err) { setMsg($("#fMsg"), err.message, true); }
+});
+$("#tPend").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.ask) { confirmId = b.dataset.ask; pintarRegistro(); }
+  else if (b.dataset.cancel) { confirmId = null; pintarRegistro(); }
+  else if (b.dataset.del) {
+    confirmId = null; b.disabled = true;
+    try { st = await adm("quitar", { id: b.dataset.del }); pintarEstado(); }
+    catch (err) { setMsg($("#fMsg"), err.message, true); pintarRegistro(); }
+  }
+});
+
+/* ---------- Tiempos ---------- */
+const dD = $("#dDesde"), dH = $("#dHasta");
+dD.value = dH.value = hoyKey();
+[dD, dH].forEach(i => i.addEventListener("change", () => { if (dD.value && dH.value) { if (dD.value > dH.value) dH.value = dD.value; cargarTiempos(); } }));
+$("#bAct").addEventListener("click", cargarTiempos);
+
+async function cargarTiempos() {
+  if (!PIN) return;
+  try { const j = await adm("tiempos", { desde: dD.value, hasta: dH.value }); filas = j.filas; meta = j.meta; aviso(""); pintarTiempos(); }
+  catch (e) { aviso(e.message); }
+}
+$("#bMeta").addEventListener("click", async () => {
+  const v = parseInt($("#dMeta").value, 10), m = $("#mMsg");
+  if (!(v >= 1 && v <= 120)) return setMsg(m, "La meta debe estar entre 1 y 120 minutos.", true);
+  try { const j = await adm("guardarMeta", { meta: v }); meta = j.meta; setMsg(m, "Meta guardada: " + v + " min."); pintarTiempos(); cargarEstado(); }
+  catch (e) { setMsg(m, e.message, true); }
+});
+
+function pintarTiempos() {
+  if (document.activeElement !== $("#dMeta")) $("#dMeta").value = meta;
+  const rows = filas.map(r => Object.assign({}, r, { durSeg: r.inicio && r.fin ? (r.fin - r.inicio) / 1000 : null }));
+  const porDia = {};
+  rows.forEach(r => (porDia[r.fecha] = porDia[r.fecha] || []).push(r));
+  Object.values(porDia).forEach(a => a.filter(r => r.inicio).sort((x, y) => x.inicio - y.inicio)
+    .forEach((r, i, s) => { r.gap = i && s[i - 1].fin ? (r.inicio - s[i - 1].fin) / 1000 : null; }));
+
+  const done = rows.filter(r => r.estado === "terminado" && r.durSeg != null);
+  const ok = done.filter(r => r.durSeg <= meta * 60).length;
+  const avg = done.length ? done.reduce((a, r) => a + r.durSeg, 0) / done.length : null;
+  const waits = rows.filter(r => r.inicio).map(r => (r.inicio - r.registrado) / 1000);
+  const gaps = rows.map(r => r.gap).filter(g => g != null && g >= 0);
+  const pct = done.length ? Math.round(ok / done.length * 100) : null;
+
+  $("#rangoTxt").textContent = (dD.value === dH.value ? "Día " + dD.value : dD.value + " a " + dH.value) + " · meta " + meta + " min";
+  $("#kpis").innerHTML = [
+    ["Lavados terminados", done.length],
+    ["Cumplimiento ≤ " + meta + " min", pct == null ? "—" : pct + "%", pct == null ? "" : pct >= 85 ? "ok" : pct >= 60 ? "warn" : "bad"],
+    ["Promedio por lavado", avg == null ? "—" : mins(avg)],
+    ["Espera promedio", waits.length ? mins(waits.reduce((a, b) => a + b, 0) / waits.length) : "—"],
+    ["Tiempo muerto total", gaps.length ? dur(gaps.reduce((a, b) => a + b, 0)) : "—"],
+    ["Pendientes / en lavado", rows.filter(r => r.estado !== "terminado").length]
+  ].map(([l, v, c]) => `<div class="kpi"><b style="${c ? `color:var(--${c})` : ""}">${v}</b><span>${l}</span></div>`).join("");
+
+  const grupos = {};
+  done.forEach(r => (grupos[r.tipo] = grupos[r.tipo] || []).push(r.durSeg));
+  const claves = [...CATS, ...Object.keys(grupos).filter(k => !CATS.includes(k))];
+  const maxN = Math.max(1, ...claves.map(k => (grupos[k] || []).length));
+  $("#bars").innerHTML = claves.map(k => {
+    const a = grupos[k] || [], av = a.length ? a.reduce((x, y) => x + y, 0) / a.length : null, okn = a.filter(s => s <= meta * 60).length;
+    return `<div class="bar"><span>${esc(k)}</span><div class="track"><div class="fill" style="width:${a.length / maxN * 100}%"></div></div>
+      <span class="val">${a.length} lavados · prom. ${av == null ? "—" : mins(av)}${a.length ? " · " + Math.round(okn / a.length * 100) + "% en meta" : ""}</span></div>`;
+  }).join("");
+
+  const tb = $("#tDet");
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="12" class="empty">No hay lavados en este rango de fechas.</td></tr>'; return; }
+  rows.sort((a, b) => b.fecha.localeCompare(a.fecha) || ((b.inicio || b.registrado) - (a.inicio || a.registrado)));
+  tb.innerHTML = rows.map(r => {
+    let chip;
+    if (r.estado === "terminado") chip = r.durSeg <= meta * 60 ? '<span class="chip ok">Cumple</span>' : '<span class="chip bad">Fuera de meta</span>';
+    else if (r.estado === "en_curso") chip = '<span class="chip warn">En lavado</span>';
+    else chip = '<span class="chip neutral">Pendiente</span>';
+    const fuera = r.durSeg != null && r.durSeg > meta * 60;
+    return `<tr><td>${esc(r.fecha)}</td><td>${r.orden}</td><td><span class="plate">${esc(r.placa)}</span></td><td>${esc(r.tipo)}</td>
+      <td>${r.horaCliente ? esc(r.horaCliente) : "—"}</td><td>${hhmm(r.registrado)}</td><td>${hhmm(r.inicio)}</td><td>${hhmm(r.fin)}</td>
+      <td style="${fuera ? "color:var(--bad);font-weight:600" : ""}">${dur(r.durSeg)}</td>
+      <td>${r.inicio ? dur((r.inicio - r.registrado) / 1000) : "—"}</td><td>${r.gap != null ? dur(r.gap) : "—"}</td><td>${chip}</td></tr>`;
+  }).join("");
+}
+
+/* ---------- Arranque ---------- */
+$("#fecha").textContent = new Date().toLocaleDateString("es-CO", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
+setInterval(() => { if (st && vista === "monitor") tickReloj($("#nowBox"), st.enCurso, st.meta); }, 1000);
+setInterval(() => { if (PIN && vista !== "tiempos") cargarEstado(); }, 10000);
+const guardado = leerPin();
+if (guardado) entrar(guardado); else salir("");
+</script>
+</body>
+</html>
