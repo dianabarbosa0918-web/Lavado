@@ -16,7 +16,8 @@
 <main><div class="wrap">
   <div id="aviso" class="banner" hidden></div>
   <div id="nowBox" class="now"><h3>Cargando…</h3></div>
-  <div class="row"><h3>Siguientes en orden</h3><span class="sub" id="metaTxt"></span></div>
+  <div class="row"><h3>Vehículos en espera</h3><span class="sub" id="metaTxt"></span></div>
+  <p class="sub" style="margin-top:-12px">Lava en este orden. Si el vehículo que sigue no está disponible, inicia el que tengas en la zona.</p>
   <div class="queue" id="queue"></div>
   <p class="msg" id="msg"></p>
 </div></main>
@@ -45,7 +46,10 @@ async function cargar() {
 
 async function accion(nombre, id) {
   ocupado = true; pintar(); msg("");
-  try { st = await api(nombre, { id }); conexion(true); }
+  try {
+    st = await api(nombre, { id }); conexion(true);
+    if (st.finalizado) alertaFinal(st.finalizado, st.meta);
+  }
   catch (e) { msg(e.message, true); }
   ocupado = false; confirmar = false;
   await cargar(); pintar();

@@ -13,7 +13,10 @@ async function api(accion, datos) {
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(Object.assign({ accion }, datos || {}))
     });
-  } catch (e) { throw new Error("Sin conexión. Revisa el internet."); }
+  } catch (e) {
+    if (!navigator.onLine) throw new Error("Sin internet. Revisa la conexión.");
+    throw new Error("No se pudo conectar con el script de Google. Revisa la URL en config.js y que la implementación tenga acceso \"Cualquier persona\".");
+  }
   let j;
   try { j = await r.json(); } catch (e) { throw new Error("El servidor no respondió bien. Intenta de nuevo."); }
   if (j.ahora) _offset = j.ahora - Date.now();
@@ -72,10 +75,44 @@ function pintarCola(el, pend, cur, conBoton, ocupado) {
   if (!pend.length) { el.innerHTML = '<div class="empty panel">No hay vehículos en espera.</div>'; return; }
   el.innerHTML = pend.map((r, i) => `<div class="qitem ${i === 0 ? "first" : ""}">
     <div class="qnum">${i + 1}</div>
-    <div class="qmeta"><span><span class="plate">${esc(r.placa)}</span> &nbsp;${esc(r.tipo)}</span>
-      <small>${r.horaCliente ? "Cliente llega " + esc(r.horaCliente) + " · " : ""}registrado ${hhmm(r.registrado)}</small></div>
-    ${conBoton && i === 0 ? `<button class="btn" data-ini="${esc(r.id)}" ${cur || ocupado ? "disabled" : ""}>Iniciar</button>` : ""}
+    <div class="qmeta"><span><span class="plate">${esc(r.placa)}</span> &nbsp;${esc(r.tipo)}
+      ${r.horaCliente ? `&nbsp;<span class="chip warn">Prioridad · listo ${esc(r.horaCliente)}</span>` : ""}</span>
+      <small>Llegó ${hhmm(r.registrado)}</small></div>
+    ${conBoton ? `<button class="btn" data-ini="${esc(r.id)}" ${cur || ocupado ? "disabled" : ""}>Iniciar</button>` : ""}
   </div>`).join("");
+}
+
+/* Aviso de lavado finalizado: tarjeta en pantalla + sonido */
+let _audio = null;
+function prepararSonido() {
+  try { if (!_audio) _audio = new (window.AudioContext || window.webkitAudioContext)(); if (_audio.state === "suspended") _audio.resume(); } catch (e) {}
+}
+document.addEventListener("click", prepararSonido);
+document.addEventListener("touchstart", prepararSonido);
+function sonar(veces) {
+  try {
+    if (!_audio) return;
+    for (let i = 0; i < (veces || 2); i++) {
+      const o = _audio.createOscillator(), g = _audio.createGain(), t = _audio.currentTime + i * 0.3;
+      o.frequency.value = 880; o.connect(g); g.connect(_audio.destination);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.4, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+      o.start(t); o.stop(t + 0.26);
+    }
+  } catch (e) {}
+}
+function alertaFinal(f, meta) {
+  const cumple = f.durMin <= meta;
+  let box = document.getElementById("alertaFinal");
+  if (!box) { box = document.createElement("div"); box.id = "alertaFinal"; box.setAttribute("role", "alert"); document.body.appendChild(box); }
+  box.className = "toast " + (cumple ? "ok" : "bad");
+  box.innerHTML = `<b>Lavado finalizado</b><span><span class="plate">${esc(f.placa)}</span> ${esc(f.tipo)}</span>
+    <span>${String(f.durMin).replace(".", ",")} min · ${cumple ? "Cumple la meta" : "Fuera de meta (" + meta + " min)"}</span>
+    <button class="btn sm ghost" type="button">Cerrar</button>`;
+  box.hidden = false;
+  box.querySelector("button").onclick = () => { box.hidden = true; };
+  clearTimeout(box._t); box._t = setTimeout(() => { box.hidden = true; }, 12000);
+  sonar(cumple ? 2 : 4);
+  try { if (navigator.vibrate) navigator.vibrate(cumple ? 300 : [300, 150, 300]); } catch (e) {}
 }
 
 let _lock = null;

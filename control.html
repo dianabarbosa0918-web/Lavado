@@ -38,7 +38,7 @@
   <!-- REGISTRO -->
   <section id="v-registro">
     <div style="display:grid;gap:16px">
-      <div><h2>Registro de vehículos</h2><p class="sub">Agrega la placa y el orden en que se deben lavar hoy. El lavador verá la lista en ese orden.</p></div>
+      <div><h2>Registro de vehículos</h2><p class="sub">La fila se arma por orden de llegada. Si pones una hora límite del cliente, ese vehículo pasa adelante.</p></div>
       <form id="fAdd" class="panel" autocomplete="off">
         <div class="form">
           <label>Placa<input id="fPlaca" maxlength="8" placeholder="ABC123" required style="text-transform:uppercase"></label>
@@ -46,19 +46,18 @@
             <option>Mantenimiento</option><option>Express</option><option>Nanolavado</option><option value="Otro">Otro (escribir)</option>
           </select></label>
           <label id="fOtroBox" hidden>¿Cuál?<input id="fOtro" maxlength="40" placeholder="Ej. Lavado de motor"></label>
-          <label>Orden<input id="fOrden" type="number" min="1" step="1" required></label>
-          <label>Hora llegada cliente <span style="text-transform:none;font-weight:400">(opcional)</span><input id="fHora" type="time"></label>
+          <label>Hora límite cliente <span class="help">(opcional, da prioridad)</span><input id="fHora" type="time"></label>
           <button class="btn" id="fBtn" type="submit">Agregar</button>
         </div>
         <p class="msg" id="fMsg"></p>
       </form>
       <div class="panel">
-        <div class="row" style="margin-bottom:10px"><h3>Pendientes de hoy</h3><span class="sub" id="pendCount"></span></div>
+        <div class="row" style="margin-bottom:10px"><h3>Vehículos de hoy</h3><span class="sub" id="pendCount"></span></div>
         <div class="tablebox"><table>
-          <thead><tr><th>Orden</th><th>Placa</th><th>Tipo</th><th>Llega cliente</th><th>Registrado</th><th></th></tr></thead>
-          <tbody id="tPend"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody>
+          <thead><tr><th>Fila</th><th>Placa</th><th>Tipo</th><th>Hora límite</th><th>Llegó</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="tHoy"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody>
         </table></div>
-        <p class="msg">Cambia el número de orden para reorganizar la fila. Los vehículos en lavado o terminados ya no se pueden editar.</p>
+        <p class="msg">Con <b>Editar</b> corriges placa, tipo u hora límite, incluso si ya está en lavado o terminado. Solo se pueden quitar los pendientes.</p>
       </div>
     </div>
   </section>
@@ -68,7 +67,7 @@
     <div style="display:grid;gap:18px">
       <p class="sub">Así ve el lavador su pantalla. Desde aquí solo se observa.</p>
       <div id="nowBox" class="now"><h3>Cargando…</h3></div>
-      <div class="row"><h3>Siguientes en orden</h3><span class="sub" id="metaTxt"></span></div>
+      <div class="row"><h3>Vehículos en espera</h3><span class="sub" id="metaTxt"></span></div>
       <div class="queue" id="queue"></div>
     </div>
   </section>
@@ -89,14 +88,14 @@
       <div class="panel">
         <h3 style="margin-bottom:10px">Detalle</h3>
         <div class="tablebox"><table>
-          <thead><tr><th>Fecha</th><th>Orden</th><th>Placa</th><th>Tipo</th><th>Llega cliente</th><th>Registrado</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Espera</th><th>Tiempo muerto</th><th>Estado</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Placa</th><th>Tipo</th><th>Hora límite</th><th>Llegó</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Espera</th><th>Tiempo muerto</th><th>Puesto al iniciar</th><th>Estado</th></tr></thead>
           <tbody id="tDet"><tr><td colspan="12" class="empty">Cargando…</td></tr></tbody>
         </table></div>
-        <p class="msg"><b>Espera</b>: desde que se registró hasta que inició el lavado. <b>Tiempo muerto</b>: desde que terminó el lavado anterior hasta que inició este.</p>
+        <p class="msg"><b>Espera</b>: desde que llegó hasta que inició el lavado. <b>Tiempo muerto</b>: desde que terminó el lavado anterior hasta que inició este. <b>Puesto al iniciar</b>: lugar que tenía en la fila cuando el lavador lo inició (1 = era el siguiente).</p>
       </div>
       <div class="panel">
         <h3 style="margin-bottom:10px">Meta por lavado</h3>
-        <div class="filters" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+        <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
           <label style="min-width:130px">Minutos<input id="dMeta" type="number" min="1" max="120" step="1"></label>
           <button class="btn" id="bMeta" type="button">Guardar meta</button>
         </div>
@@ -111,7 +110,8 @@
 <script src="comun.js"></script>
 <script>
 const CATS = ["Mantenimiento", "Express", "Nanolavado"];
-let PIN = "", st = null, filas = [], meta = 20, confirmId = null, vista = "registro";
+let PIN = "", st = null, filas = [], meta = 20, confirmId = null, editId = null, vista = "registro";
+let vistos = null; // ids de lavados terminados ya conocidos (para avisar los nuevos)
 
 function leerPin() { try { return sessionStorage.getItem("lav_pin") || ""; } catch (e) { return ""; } }
 function guardarPin(p) { try { p ? sessionStorage.setItem("lav_pin", p) : sessionStorage.removeItem("lav_pin"); } catch (e) {} }
@@ -125,7 +125,7 @@ async function adm(accion, datos) {
 
 /* ---------- Acceso ---------- */
 function salir(m) {
-  PIN = ""; guardarPin(""); $("#app").hidden = true; $("#login").hidden = false;
+  PIN = ""; guardarPin(""); vistos = null; $("#app").hidden = true; $("#login").hidden = false;
   setMsg($("#lMsg"), m || "", !!m); $("#pin").value = ""; $("#pin").focus();
 }
 async function entrar(p) {
@@ -151,69 +151,112 @@ document.querySelectorAll("nav button").forEach(b => b.addEventListener("click",
 /* ---------- Estado (registro y monitor) ---------- */
 async function cargarEstado() {
   if (!PIN) return;
-  try { st = await api("estado"); meta = st.meta; aviso(""); pintarEstado(); }
+  try { usarEstado(await api("estado")); aviso(""); }
   catch (e) { aviso(e.message); }
+}
+function usarEstado(nuevo) {
+  st = nuevo; meta = st.meta;
+  st.pendientes = st.pendientes || []; st.terminados = st.terminados || [];
+  // Avisar los lavados que terminaron desde la última revisión
+  const ids = st.terminados.map(r => r.id);
+  if (vistos) st.terminados.filter(r => !vistos.has(r.id)).forEach(r => alertaFinal(r, st.meta));
+  vistos = new Set(ids);
+  pintarEstado();
 }
 function pintarEstado() {
   if (!st) return;
-  const enTabla = document.activeElement && document.activeElement.closest && document.activeElement.closest("#tPend");
-  if (!enTabla) pintarRegistro();
+  if (!editId) pintarRegistro();
   $("#metaTxt").textContent = "Meta: " + st.meta + " min · " + st.terminadosHoy + " lavados hoy";
   pintarActual($("#nowBox"), st.enCurso, st.pendientes, st.meta, "ninguno", false);
   pintarCola($("#queue"), st.pendientes, st.enCurso, false, false);
 }
+
+function chipEstado(r) {
+  if (r.estado === "en_curso") return '<span class="chip warn">En lavado</span>';
+  if (r.estado === "terminado") return r.durMin <= st.meta
+    ? `<span class="chip ok">Terminado · ${String(r.durMin).replace(".", ",")} min</span>`
+    : `<span class="chip bad">Terminado · ${String(r.durMin).replace(".", ",")} min</span>`;
+  return '<span class="chip neutral">En espera</span>';
+}
+function opcionesTipo(actual) {
+  const otro = actual && !CATS.includes(actual);
+  return CATS.map(c => `<option ${c === actual ? "selected" : ""}>${c}</option>`).join("") +
+    `<option value="Otro" ${otro ? "selected" : ""}>Otro</option>`;
+}
 function pintarRegistro() {
-  const pend = st.pendientes;
-  const fo = $("#fOrden");
-  if (document.activeElement !== fo && fo.dataset.manual !== "1") fo.value = Math.max(0, ...pend.map(r => r.orden)) + 1;
-  $("#pendCount").textContent = pend.length + " en espera · " + st.terminadosHoy + " lavados hoy" + (st.enCurso ? " · 1 en lavado" : "");
-  const tb = $("#tPend");
-  if (!pend.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">No hay vehículos pendientes. Agrega el primero arriba.</td></tr>'; return; }
-  tb.innerHTML = pend.map(r => `<tr>
-    <td><input class="ord" type="number" min="1" id="ord-${esc(r.id)}" data-id="${esc(r.id)}" value="${r.orden}" aria-label="Orden ${esc(r.placa)}"></td>
-    <td><span class="plate">${esc(r.placa)}</span></td><td>${esc(r.tipo)}</td>
-    <td>${r.horaCliente ? esc(r.horaCliente) : "—"}</td><td>${hhmm(r.registrado)}</td>
-    <td>${confirmId === r.id
-      ? `<span class="inline-confirm">¿Quitar?<button class="btn sm danger" data-del="${esc(r.id)}">Sí</button><button class="btn sm ghost" data-cancel="1">No</button></span>`
-      : `<button class="btn sm ghost" data-ask="${esc(r.id)}">Quitar</button>`}</td></tr>`).join("");
+  const lista = [
+    ...st.pendientes.map((r, i) => Object.assign({ fila: i + 1 }, r)),
+    ...(st.enCurso ? [Object.assign({ fila: "" }, st.enCurso)] : []),
+    ...st.terminados.map(r => Object.assign({ fila: "" }, r))
+  ];
+  $("#pendCount").textContent = st.pendientes.length + " en espera · " + (st.enCurso ? "1 en lavado · " : "") + st.terminadosHoy + " terminados";
+  const tb = $("#tHoy");
+  if (!lista.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">Aún no hay vehículos hoy. Agrega el primero arriba.</td></tr>'; return; }
+  tb.innerHTML = lista.map(r => {
+    if (editId === r.id) {
+      const otro = !CATS.includes(r.tipo);
+      return `<tr>
+        <td>${r.fila}</td>
+        <td><input class="ed" id="ePlaca" maxlength="8" value="${esc(r.placa)}" style="text-transform:uppercase"></td>
+        <td><div class="edbox"><select class="ed" id="eCat">${opcionesTipo(r.tipo)}</select>
+          <input class="ed" id="eOtro" maxlength="40" placeholder="¿Cuál?" value="${otro ? esc(r.tipo) : ""}" ${otro ? "" : "hidden"}></div></td>
+        <td><input class="ed" id="eHora" type="time" value="${esc(r.horaCliente)}"></td>
+        <td>${hhmm(r.registrado)}</td><td>${chipEstado(r)}</td>
+        <td><span class="inline-confirm"><button class="btn sm" data-guardar="${esc(r.id)}">Guardar</button><button class="btn sm ghost" data-cancel="1">Cancelar</button></span></td></tr>`;
+    }
+    let acc = `<button class="btn sm ghost" data-edit="${esc(r.id)}">Editar</button>`;
+    if (r.estado === "pendiente") acc += confirmId === r.id
+      ? ` <span class="inline-confirm">¿Quitar?<button class="btn sm danger" data-del="${esc(r.id)}">Sí</button><button class="btn sm ghost" data-cancel="1">No</button></span>`
+      : ` <button class="btn sm ghost" data-ask="${esc(r.id)}">Quitar</button>`;
+    return `<tr><td>${r.fila}</td><td><span class="plate">${esc(r.placa)}</span></td><td>${esc(r.tipo)}</td>
+      <td>${r.horaCliente ? `<span class="chip warn">${esc(r.horaCliente)}</span>` : "—"}</td><td>${hhmm(r.registrado)}</td>
+      <td>${chipEstado(r)}</td><td><span class="inline-confirm">${acc}</span></td></tr>`;
+  }).join("");
 }
 
 $("#fCat").addEventListener("change", e => { $("#fOtroBox").hidden = e.target.value !== "Otro"; });
 $("#fPlaca").addEventListener("input", e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
-$("#fOrden").addEventListener("input", e => { e.target.dataset.manual = "1"; });
 
 $("#fAdd").addEventListener("submit", async e => {
   e.preventDefault(); const m = $("#fMsg");
   const placa = $("#fPlaca").value.trim(), cat = $("#fCat").value, otro = $("#fOtro").value.trim();
-  const orden = parseInt($("#fOrden").value, 10);
   if (placa.length < 5) return setMsg(m, "Escribe una placa válida (ej. ABC123).", true);
   if (cat === "Otro" && !otro) return setMsg(m, "Escribe cuál es el otro tipo de lavado.", true);
-  if (!(orden >= 1)) return setMsg(m, "El orden debe ser un número desde 1.", true);
   $("#fBtn").disabled = true; setMsg(m, "Guardando…");
   try {
-    st = await adm("agregar", { placa, tipo: cat === "Otro" ? otro : cat, orden, horaCliente: $("#fHora").value });
-    setMsg(m, "Agregado: " + placa + " en el puesto " + orden + ".");
-    $("#fPlaca").value = ""; $("#fOtro").value = ""; $("#fHora").value = ""; $("#fOrden").dataset.manual = "0";
-    pintarEstado(); $("#fPlaca").focus();
+    usarEstado(await adm("agregar", { placa, tipo: cat === "Otro" ? otro : cat, horaCliente: $("#fHora").value }));
+    setMsg(m, "Agregado: " + placa + ".");
+    $("#fPlaca").value = ""; $("#fOtro").value = ""; $("#fHora").value = ""; $("#fPlaca").focus();
   } catch (err) { setMsg(m, err.message, true); }
   $("#fBtn").disabled = false;
 });
 
-$("#tPend").addEventListener("change", async e => {
-  const id = e.target.dataset.id; if (!id) return;
-  const v = parseInt(e.target.value, 10);
-  if (!(v >= 1)) { pintarRegistro(); return; }
-  try { st = await adm("reordenar", { id, orden: v }); e.target.blur(); pintarEstado(); }
-  catch (err) { setMsg($("#fMsg"), err.message, true); }
+$("#tHoy").addEventListener("input", e => {
+  if (e.target.id === "ePlaca") e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
 });
-$("#tPend").addEventListener("click", async e => {
+$("#tHoy").addEventListener("change", e => {
+  if (e.target.id === "eCat") { const o = $("#eOtro"); o.hidden = e.target.value !== "Otro"; if (!o.hidden) o.focus(); }
+});
+$("#tHoy").addEventListener("click", async e => {
   const b = e.target.closest("button"); if (!b) return;
-  if (b.dataset.ask) { confirmId = b.dataset.ask; pintarRegistro(); }
-  else if (b.dataset.cancel) { confirmId = null; pintarRegistro(); }
+  const m = $("#fMsg");
+  if (b.dataset.edit) { editId = b.dataset.edit; confirmId = null; pintarRegistro(); $("#ePlaca").focus(); }
+  else if (b.dataset.ask) { confirmId = b.dataset.ask; editId = null; pintarRegistro(); }
+  else if (b.dataset.cancel) { confirmId = null; editId = null; pintarRegistro(); }
+  else if (b.dataset.guardar) {
+    const placa = $("#ePlaca").value.trim(), cat = $("#eCat").value, otro = $("#eOtro").value.trim();
+    if (placa.length < 5) return setMsg(m, "Escribe una placa válida (ej. ABC123).", true);
+    if (cat === "Otro" && !otro) return setMsg(m, "Escribe cuál es el otro tipo de lavado.", true);
+    b.disabled = true;
+    try {
+      const nuevo = await adm("editar", { id: b.dataset.guardar, placa, tipo: cat === "Otro" ? otro : cat, horaCliente: $("#eHora").value });
+      editId = null; usarEstado(nuevo); setMsg(m, "Cambios guardados: " + placa + ".");
+    } catch (err) { setMsg(m, err.message, true); b.disabled = false; }
+  }
   else if (b.dataset.del) {
     confirmId = null; b.disabled = true;
-    try { st = await adm("quitar", { id: b.dataset.del }); pintarEstado(); }
-    catch (err) { setMsg($("#fMsg"), err.message, true); pintarRegistro(); }
+    try { usarEstado(await adm("quitar", { id: b.dataset.del })); }
+    catch (err) { setMsg(m, err.message, true); pintarRegistro(); }
   }
 });
 
@@ -225,7 +268,7 @@ $("#bAct").addEventListener("click", cargarTiempos);
 
 async function cargarTiempos() {
   if (!PIN) return;
-  try { const j = await adm("tiempos", { desde: dD.value, hasta: dH.value }); filas = j.filas; meta = j.meta; aviso(""); pintarTiempos(); }
+  try { const j = await adm("tiempos", { desde: dD.value, hasta: dH.value }); filas = j.filas || []; meta = j.meta || meta; aviso(""); pintarTiempos(); }
   catch (e) { aviso(e.message); }
 }
 $("#bMeta").addEventListener("click", async () => {
@@ -249,6 +292,7 @@ function pintarTiempos() {
   const waits = rows.filter(r => r.inicio).map(r => (r.inicio - r.registrado) / 1000);
   const gaps = rows.map(r => r.gap).filter(g => g != null && g >= 0);
   const pct = done.length ? Math.round(ok / done.length * 100) : null;
+  const fueraOrden = rows.filter(r => r.posicion > 1).length;
 
   $("#rangoTxt").textContent = (dD.value === dH.value ? "Día " + dD.value : dD.value + " a " + dH.value) + " · meta " + meta + " min";
   $("#kpis").innerHTML = [
@@ -257,6 +301,7 @@ function pintarTiempos() {
     ["Promedio por lavado", avg == null ? "—" : mins(avg)],
     ["Espera promedio", waits.length ? mins(waits.reduce((a, b) => a + b, 0) / waits.length) : "—"],
     ["Tiempo muerto total", gaps.length ? dur(gaps.reduce((a, b) => a + b, 0)) : "—"],
+    ["Iniciados fuera de turno", fueraOrden],
     ["Pendientes / en lavado", rows.filter(r => r.estado !== "terminado").length]
   ].map(([l, v, c]) => `<div class="kpi"><b style="${c ? `color:var(--${c})` : ""}">${v}</b><span>${l}</span></div>`).join("");
 
@@ -277,19 +322,20 @@ function pintarTiempos() {
     let chip;
     if (r.estado === "terminado") chip = r.durSeg <= meta * 60 ? '<span class="chip ok">Cumple</span>' : '<span class="chip bad">Fuera de meta</span>';
     else if (r.estado === "en_curso") chip = '<span class="chip warn">En lavado</span>';
-    else chip = '<span class="chip neutral">Pendiente</span>';
+    else chip = '<span class="chip neutral">En espera</span>';
     const fuera = r.durSeg != null && r.durSeg > meta * 60;
-    return `<tr><td>${esc(r.fecha)}</td><td>${r.orden}</td><td><span class="plate">${esc(r.placa)}</span></td><td>${esc(r.tipo)}</td>
+    return `<tr><td>${esc(r.fecha)}</td><td><span class="plate">${esc(r.placa)}</span></td><td>${esc(r.tipo)}</td>
       <td>${r.horaCliente ? esc(r.horaCliente) : "—"}</td><td>${hhmm(r.registrado)}</td><td>${hhmm(r.inicio)}</td><td>${hhmm(r.fin)}</td>
       <td style="${fuera ? "color:var(--bad);font-weight:600" : ""}">${dur(r.durSeg)}</td>
-      <td>${r.inicio ? dur((r.inicio - r.registrado) / 1000) : "—"}</td><td>${r.gap != null ? dur(r.gap) : "—"}</td><td>${chip}</td></tr>`;
+      <td>${r.inicio ? dur((r.inicio - r.registrado) / 1000) : "—"}</td><td>${r.gap != null ? dur(r.gap) : "—"}</td>
+      <td style="${r.posicion > 1 ? "color:var(--warn);font-weight:600" : ""}">${r.posicion || "—"}</td><td>${chip}</td></tr>`;
   }).join("");
 }
 
 /* ---------- Arranque ---------- */
 $("#fecha").textContent = new Date().toLocaleDateString("es-CO", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
 setInterval(() => { if (st && vista === "monitor") tickReloj($("#nowBox"), st.enCurso, st.meta); }, 1000);
-setInterval(() => { if (PIN && vista !== "tiempos") cargarEstado(); }, 10000);
+setInterval(() => { if (PIN) cargarEstado(); }, 10000);
 const guardado = leerPin();
 if (guardado) entrar(guardado); else salir("");
 </script>
