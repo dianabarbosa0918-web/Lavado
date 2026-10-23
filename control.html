@@ -38,7 +38,7 @@
   <!-- REGISTRO -->
   <section id="v-registro">
     <div style="display:grid;gap:16px">
-      <div><h2>Registro de vehículos</h2><p class="sub">La fila se arma por orden de llegada. Si pones una hora límite del cliente, ese vehículo pasa adelante.</p></div>
+      <div><h2>Registro de vehículos</h2><p class="sub">La fila se arma por orden de llegada.</p></div>
       <form id="fAdd" class="panel" autocomplete="off">
         <div class="form">
           <label>Placa<input id="fPlaca" maxlength="8" placeholder="ABC123" required style="text-transform:uppercase"></label>
@@ -46,7 +46,6 @@
             <option>Mantenimiento</option><option>Express</option><option>Nanolavado</option><option value="Otro">Otro (escribir)</option>
           </select></label>
           <label id="fOtroBox" hidden>¿Cuál?<input id="fOtro" maxlength="40" placeholder="Ej. Lavado de motor"></label>
-          <label>Hora límite cliente <span class="help">(opcional, da prioridad)</span><input id="fHora" type="time"></label>
           <button class="btn" id="fBtn" type="submit">Agregar</button>
         </div>
         <p class="msg" id="fMsg"></p>
@@ -54,10 +53,10 @@
       <div class="panel">
         <div class="row" style="margin-bottom:10px"><h3>Vehículos de hoy</h3><span class="sub" id="pendCount"></span></div>
         <div class="tablebox"><table>
-          <thead><tr><th>Fila</th><th>Placa</th><th>Tipo</th><th>Hora límite</th><th>Llegó</th><th>Estado</th><th></th></tr></thead>
-          <tbody id="tHoy"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody>
+          <thead><tr><th>Fila</th><th>Placa</th><th>Tipo</th><th>Llegó</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="tHoy"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody>
         </table></div>
-        <p class="msg">Con <b>Editar</b> corriges placa, tipo u hora límite, incluso si ya está en lavado o terminado. Solo se pueden quitar los pendientes.</p>
+        <p class="msg">Con <b>Editar</b> corriges la placa o el tipo, incluso si ya está en lavado o terminado. Solo se pueden quitar los pendientes.</p>
       </div>
     </div>
   </section>
@@ -88,8 +87,8 @@
       <div class="panel">
         <h3 style="margin-bottom:10px">Detalle</h3>
         <div class="tablebox"><table>
-          <thead><tr><th>Fecha</th><th>Placa</th><th>Tipo</th><th>Hora límite</th><th>Llegó</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Espera</th><th>Tiempo muerto</th><th>Puesto al iniciar</th><th>Estado</th></tr></thead>
-          <tbody id="tDet"><tr><td colspan="12" class="empty">Cargando…</td></tr></tbody>
+          <thead><tr><th>Fecha</th><th>Placa</th><th>Tipo</th><th>Llegó</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Espera</th><th>Tiempo muerto</th><th>Puesto al iniciar</th><th>Estado</th></tr></thead>
+          <tbody id="tDet"><tr><td colspan="11" class="empty">Cargando…</td></tr></tbody>
         </table></div>
         <p class="msg"><b>Espera</b>: desde que llegó hasta que inició el lavado. <b>Tiempo muerto</b>: desde que terminó el lavado anterior hasta que inició este. <b>Puesto al iniciar</b>: lugar que tenía en la fila cuando el lavador lo inició (1 = era el siguiente).</p>
       </div>
@@ -191,7 +190,7 @@ function pintarRegistro() {
   ];
   $("#pendCount").textContent = st.pendientes.length + " en espera · " + (st.enCurso ? "1 en lavado · " : "") + st.terminadosHoy + " terminados";
   const tb = $("#tHoy");
-  if (!lista.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">Aún no hay vehículos hoy. Agrega el primero arriba.</td></tr>'; return; }
+  if (!lista.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">Aún no hay vehículos hoy. Agrega el primero arriba.</td></tr>'; return; }
   tb.innerHTML = lista.map(r => {
     if (editId === r.id) {
       const otro = !CATS.includes(r.tipo);
@@ -200,7 +199,6 @@ function pintarRegistro() {
         <td><input class="ed" id="ePlaca" maxlength="8" value="${esc(r.placa)}" style="text-transform:uppercase"></td>
         <td><div class="edbox"><select class="ed" id="eCat">${opcionesTipo(r.tipo)}</select>
           <input class="ed" id="eOtro" maxlength="40" placeholder="¿Cuál?" value="${otro ? esc(r.tipo) : ""}" ${otro ? "" : "hidden"}></div></td>
-        <td><input class="ed" id="eHora" type="time" value="${esc(r.horaCliente)}"></td>
         <td>${hhmm(r.registrado)}</td><td>${chipEstado(r)}</td>
         <td><span class="inline-confirm"><button class="btn sm" data-guardar="${esc(r.id)}">Guardar</button><button class="btn sm ghost" data-cancel="1">Cancelar</button></span></td></tr>`;
     }
@@ -209,7 +207,7 @@ function pintarRegistro() {
       ? ` <span class="inline-confirm">¿Quitar?<button class="btn sm danger" data-del="${esc(r.id)}">Sí</button><button class="btn sm ghost" data-cancel="1">No</button></span>`
       : ` <button class="btn sm ghost" data-ask="${esc(r.id)}">Quitar</button>`;
     return `<tr><td>${r.fila}</td><td><span class="plate">${esc(r.placa)}</span></td><td>${esc(r.tipo)}</td>
-      <td>${r.horaCliente ? `<span class="chip warn">${esc(r.horaCliente)}</span>` : "—"}</td><td>${hhmm(r.registrado)}</td>
+      <td>${hhmm(r.registrado)}</td>
       <td>${chipEstado(r)}</td><td><span class="inline-confirm">${acc}</span></td></tr>`;
   }).join("");
 }
@@ -224,9 +222,9 @@ $("#fAdd").addEventListener("submit", async e => {
   if (cat === "Otro" && !otro) return setMsg(m, "Escribe cuál es el otro tipo de lavado.", true);
   $("#fBtn").disabled = true; setMsg(m, "Guardando…");
   try {
-    usarEstado(await adm("agregar", { placa, tipo: cat === "Otro" ? otro : cat, horaCliente: $("#fHora").value }));
+    usarEstado(await adm("agregar", { placa, tipo: cat === "Otro" ? otro : cat}));
     setMsg(m, "Agregado: " + placa + ".");
-    $("#fPlaca").value = ""; $("#fOtro").value = ""; $("#fHora").value = ""; $("#fPlaca").focus();
+    $("#fPlaca").value = ""; $("#fOtro").value = ""; $("#fPlaca").focus();
   } catch (err) { setMsg(m, err.message, true); }
   $("#fBtn").disabled = false;
 });
@@ -249,7 +247,7 @@ $("#tHoy").addEventListener("click", async e => {
     if (cat === "Otro" && !otro) return setMsg(m, "Escribe cuál es el otro tipo de lavado.", true);
     b.disabled = true;
     try {
-      const nuevo = await adm("editar", { id: b.dataset.guardar, placa, tipo: cat === "Otro" ? otro : cat, horaCliente: $("#eHora").value });
+      const nuevo = await adm("editar", { id: b.dataset.guardar, placa, tipo: cat === "Otro" ? otro : cat});
       editId = null; usarEstado(nuevo); setMsg(m, "Cambios guardados: " + placa + ".");
     } catch (err) { setMsg(m, err.message, true); b.disabled = false; }
   }
@@ -316,7 +314,7 @@ function pintarTiempos() {
   }).join("");
 
   const tb = $("#tDet");
-  if (!rows.length) { tb.innerHTML = '<tr><td colspan="12" class="empty">No hay lavados en este rango de fechas.</td></tr>'; return; }
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="11" class="empty">No hay lavados en este rango de fechas.</td></tr>'; return; }
   rows.sort((a, b) => b.fecha.localeCompare(a.fecha) || ((b.inicio || b.registrado) - (a.inicio || a.registrado)));
   tb.innerHTML = rows.map(r => {
     let chip;
@@ -325,7 +323,7 @@ function pintarTiempos() {
     else chip = '<span class="chip neutral">En espera</span>';
     const fuera = r.durSeg != null && r.durSeg > meta * 60;
     return `<tr><td>${esc(r.fecha)}</td><td><span class="plate">${esc(r.placa)}</span></td><td>${esc(r.tipo)}</td>
-      <td>${r.horaCliente ? esc(r.horaCliente) : "—"}</td><td>${hhmm(r.registrado)}</td><td>${hhmm(r.inicio)}</td><td>${hhmm(r.fin)}</td>
+      <td>${hhmm(r.registrado)}</td><td>${hhmm(r.inicio)}</td><td>${hhmm(r.fin)}</td>
       <td style="${fuera ? "color:var(--bad);font-weight:600" : ""}">${dur(r.durSeg)}</td>
       <td>${r.inicio ? dur((r.inicio - r.registrado) / 1000) : "—"}</td><td>${r.gap != null ? dur(r.gap) : "—"}</td>
       <td style="${r.posicion > 1 ? "color:var(--warn);font-weight:600" : ""}">${r.posicion || "—"}</td><td>${chip}</td></tr>`;
