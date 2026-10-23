@@ -75,8 +75,7 @@ function pintarCola(el, pend, cur, conBoton, ocupado) {
   if (!pend.length) { el.innerHTML = '<div class="empty panel">No hay vehículos en espera.</div>'; return; }
   el.innerHTML = pend.map((r, i) => `<div class="qitem ${i === 0 ? "first" : ""}">
     <div class="qnum">${i + 1}</div>
-    <div class="qmeta"><span><span class="plate">${esc(r.placa)}</span> &nbsp;${esc(r.tipo)}
-      ${r.horaCliente ? `&nbsp;<span class="chip warn">Prioridad · listo ${esc(r.horaCliente)}</span>` : ""}</span>
+    <div class="qmeta"><span><span class="plate">${esc(r.placa)}</span> &nbsp;${esc(r.tipo)}</span>
       <small>Llegó ${hhmm(r.registrado)}</small></div>
     ${conBoton ? `<button class="btn" data-ini="${esc(r.id)}" ${cur || ocupado ? "disabled" : ""}>Iniciar</button>` : ""}
   </div>`).join("");
